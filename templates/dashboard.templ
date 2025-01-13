@@ -24,7 +24,7 @@ templ layout() {
 	</html>
 }
 
-templ dashboard(tests []Test) {
+templ Dashboard(tests []Test) {
 	@layout() {
 		<h1 class="text-3xl font-bold mb-8">A/B Test Dashboard</h1>
 		<div class="grid grid-cols-1 gap-6">
@@ -52,7 +52,7 @@ templ testCard(test Test) {
 	</div>
 }
 
-templ armStats(arms []Arm) {
+templ ArmStats(arms []Arm) {
 	for _, arm := range arms {
 		@armCard(arm)
 	}

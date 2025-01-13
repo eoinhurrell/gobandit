@@ -4,13 +4,13 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"gobandit/models"
+	"gobandit/templates"
 	"log"
 	"math"
 	"math/rand"
 	"net/http"
 	"time"
-
-	. "gobandit/models"
 
 	"github.com/gorilla/mux"
 	_ "github.com/lib/pq"
@@ -37,11 +37,30 @@ func (s *Server) routes() {
 	s.router.HandleFunc("/tests", s.handleCreateTest).Methods("POST")
 	s.router.HandleFunc("/tests/{testID}/arm", s.handleGetArm).Methods("GET")
 	s.router.HandleFunc("/tests/{testID}/arms/{armID}/result", s.handleRecordResult).Methods("POST")
+
+	// Dashboard routes
+	s.router.HandleFunc("/", s.handleDashboard).Methods("GET")
+	s.router.HandleFunc("/tests/{testID}/arms", s.handleGetArmStats).Methods("GET")
+}
+
+// handleDashboard renders the main dashboard
+func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
+	tests, err := s.getAllTests()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	err = templates.Dashboard(tests).Render(r.Context(), w)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 }
 
 // handleCreateTest creates a new test with the specified arms
 func (s *Server) handleCreateTest(w http.ResponseWriter, r *http.Request) {
-	var test Test
+	var test models.Test
 	if err := json.NewDecoder(r.Body).Decode(&test); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -88,6 +107,77 @@ func (s *Server) handleCreateTest(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(test)
 }
 
+// handleGetArmStats returns stats for all arms in a test
+func (s *Server) handleGetArmStats(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	testID := vars["testID"]
+
+	arms, err := s.getTestArms(testID)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	err = templates.ArmStats(arms).Render(r.Context(), w)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+}
+
+// getAllTests retrieves all tests from the database
+func (s *Server) getAllTests() ([]models.Test, error) {
+	rows, err := s.db.Query(`
+		SELECT id, name, description, created_at, updated_at
+		FROM tests
+		ORDER BY created_at DESC
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var tests []models.Test
+	for rows.Next() {
+		var test models.Test
+		err := rows.Scan(&test.ID, &test.Name, &test.Description, &test.CreatedAt, &test.UpdatedAt)
+		if err != nil {
+			return nil, err
+		}
+		tests = append(tests, test)
+	}
+	return tests, nil
+}
+
+// getTestArms retrieves all arms for a specific test
+func (s *Server) getTestArms(testID string) ([]models.Arm, error) {
+	rows, err := s.db.Query(`
+		SELECT id, name, description, successes, failures, created_at, updated_at
+		FROM arms
+		WHERE test_id = $1
+		ORDER BY name
+	`, testID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var arms []models.Arm
+	for rows.Next() {
+		var arm models.Arm
+		err := rows.Scan(
+			&arm.ID, &arm.Name, &arm.Description,
+			&arm.Successes, &arm.Failures,
+			&arm.CreatedAt, &arm.UpdatedAt,
+		)
+		if err != nil {
+			return nil, err
+		}
+		arms = append(arms, arm)
+	}
+	return arms, nil
+}
+
 // handleGetArm returns the next arm to test using Thompson Sampling
 func (s *Server) handleGetArm(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
@@ -105,9 +195,9 @@ func (s *Server) handleGetArm(w http.ResponseWriter, r *http.Request) {
 	}
 	defer rows.Close()
 
-	var arms []Arm
+	var arms []models.Arm
 	for rows.Next() {
-		var arm Arm
+		var arm models.Arm
 		err := rows.Scan(&arm.ID, &arm.Name, &arm.Successes, &arm.Failures)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -167,12 +257,12 @@ func (s *Server) handleRecordResult(w http.ResponseWriter, r *http.Request) {
 }
 
 // thompsonSampling implements the Thompson Sampling algorithm
-func thompsonSampling(arms []Arm) Arm {
+func thompsonSampling(arms []models.Arm) models.Arm {
 	rand.Seed(time.Now().UnixNano())
 
 	var (
 		maxSample float64
-		selected  Arm
+		selected  models.Arm
 	)
 
 	for _, arm := range arms {
