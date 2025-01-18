@@ -2,13 +2,15 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"gobandit/models"
+	"gobandit/templates"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
-
-	. "gobandit/models"
 
 	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/stretchr/testify/assert"
@@ -25,10 +27,10 @@ func TestCreateTest(t *testing.T) {
 	server := NewServer(db)
 
 	// Test data
-	test := Test{
+	test := models.Test{
 		Name:        "Test Campaign",
 		Description: "A/B Test for button color",
-		Arms: []Arm{
+		Arms: []models.Arm{
 			{Name: "Blue Button", Description: "Control"},
 			{Name: "Red Button", Description: "Variant"},
 		},
@@ -59,7 +61,7 @@ func TestCreateTest(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.NoError(t, mock.ExpectationsWereMet())
 
-	var response Test
+	var response models.Test
 	err = json.NewDecoder(w.Body).Decode(&response)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, response.ID)
@@ -79,7 +81,7 @@ func TestGetArm(t *testing.T) {
 
 	// Test data
 	testID := "test-123"
-	arms := []Arm{
+	arms := []models.Arm{
 		{ID: "arm-1", Name: "Control", Successes: 10, Failures: 5},
 		{ID: "arm-2", Name: "Variant", Successes: 15, Failures: 8},
 	}
@@ -100,7 +102,7 @@ func TestGetArm(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.NoError(t, mock.ExpectationsWereMet())
 
-	var response Arm
+	var response models.Arm
 	err = json.NewDecoder(w.Body).Decode(&response)
 	assert.NoError(t, err)
 	assert.Contains(t, []string{arms[0].ID, arms[1].ID}, response.ID)
@@ -146,7 +148,7 @@ func TestRecordResult(t *testing.T) {
 }
 
 func TestThompsonSampling(t *testing.T) {
-	arms := []Arm{
+	arms := []models.Arm{
 		{ID: "1", Successes: 100, Failures: 0},
 		{ID: "2", Successes: 0, Failures: 100},
 		{ID: "3", Successes: 50, Failures: 50},
@@ -181,4 +183,85 @@ func TestBetaDistribution(t *testing.T) {
 		assert.GreaterOrEqual(t, sample, 0.0)
 		assert.LessOrEqual(t, sample, 1.0)
 	}
+}
+
+// TestDashboardRendering tests the complete rendering of the dashboard template
+func TestDashboardRendering(t *testing.T) {
+	// Setup test data
+	tests := []models.Test{
+		{
+			ID:        "1",
+			Name:      "Test Campaign 1",
+			CreatedAt: time.Date(2024, time.January, 14, 15, 30, 45, 0, time.UTC),
+		},
+		{
+			ID:        "2",
+			Name:      "Test Campaign 2",
+			CreatedAt: time.Date(2024, time.January, 14, 15, 30, 45, 0, time.UTC),
+		},
+	}
+
+	// Create a string builder to capture the rendered HTML
+	var builder strings.Builder
+
+	// Render the dashboard template
+	err := templates.Dashboard(tests).Render(context.Background(), &builder)
+	assert.NoError(t, err, "Template should render without error")
+
+	// Get the rendered HTML
+	result := builder.String()
+
+	// Test for expected content
+	assert.Contains(t, result, "A/B Test Dashboard", "Should contain the dashboard title")
+	assert.Contains(t, result, "Test Campaign 1", "Should contain the first test name")
+	assert.Contains(t, result, "Test Campaign 2", "Should contain the second test name")
+	assert.Contains(t, result, "htmx.org", "Should contain HTMX script")
+	assert.Contains(t, result, "tailwindcss", "Should contain Tailwind script")
+}
+
+// TestEmptyDashboard tests rendering with no tests
+func TestEmptyDashboard(t *testing.T) {
+	var builder strings.Builder
+	err := templates.Dashboard([]models.Test{}).Render(context.Background(), &builder)
+	assert.NoError(t, err, "Empty dashboard should render without error")
+
+	result := builder.String()
+	assert.Contains(t, result, "A/B Test Dashboard", "Should still contain the dashboard title")
+	assert.NotContains(t, result, "Test Campaign", "Should not contain any test campaigns")
+}
+
+// TestDashboardSanitization tests that the template properly escapes HTML
+func TestDashboardSanitization(t *testing.T) {
+	tests := []models.Test{
+		{
+			ID:        "1",
+			Name:      "<script>alert('xss')</script>",
+			CreatedAt: time.Date(2024, time.January, 14, 15, 30, 45, 0, time.UTC),
+		},
+	}
+
+	var builder strings.Builder
+	err := templates.Dashboard(tests).Render(context.Background(), &builder)
+	assert.NoError(t, err, "Template should render without error")
+
+	result := builder.String()
+	assert.Contains(t, result, "&lt;script&gt;", "HTML in test name should be escaped")
+	assert.NotContains(t, result, "<script>alert('xss')</script>", "Raw HTML should not appear in output")
+}
+
+// TestLayoutStructure tests the basic structure of the layout
+func TestLayoutStructure(t *testing.T) {
+	var builder strings.Builder
+	// We'll use Dashboard with empty tests to test the layout
+	err := templates.Dashboard([]models.Test{}).Render(context.Background(), &builder)
+	assert.NoError(t, err, "Layout should render without error")
+
+	result := builder.String()
+
+	// Test for required HTML structure
+	assert.Contains(t, result, "<!doctype html>", "Should contain DOCTYPE declaration")
+	assert.Contains(t, result, "<html lang=\"en\">", "Should contain HTML tag with lang attribute")
+	assert.Contains(t, result, "<meta charset=\"UTF-8\"", "Should contain UTF-8 charset meta tag")
+	assert.Contains(t, result, "<meta name=\"viewport\"", "Should contain viewport meta tag")
+	assert.Contains(t, result, "<body class=\"bg-gray-100\">", "Should contain body tag with correct class")
 }
