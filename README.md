@@ -4,7 +4,23 @@
 [![GoReportCard example](https://goreportcard.com/badge/github.com/eoinhurrell/gobandit)](https://goreportcard.com/report/github.com/eoinhurrell/gobandit)
 [![GPLv3 license](https://img.shields.io/badge/License-GPLv3-blue.svg)](http://perso.crans.org/besson/LICENSE.html)
 
-GoBandit is a production-ready experimentation engine that implements Thompson Sampling for intelligent A/B testing at scale. Built with Go and PostgreSQL, it provides a clean, performant API for managing multiple concurrent experiments with sophisticated exploration/exploitation strategies.
+GoBandit is a pet project, an experimentation engine that implements Thompson Sampling for intelligent A/B testing at scale. Built with Go, with a frontend written using HTMX, Templ and Tailwind, and PostgreSQL storage. It provides a clean, performant API for managing multiple concurrent experiments with sophisticated exploration/exploitation strategies.
+
+## Local Development
+
+Start PostgreSQL:
+
+```bash
+docker compose up -d postgres
+```
+
+Start server:
+
+```bash
+go run main.go
+```
+
+Go to `http://localhost:8080`
 
 ## API
 
@@ -51,39 +67,6 @@ curl -X POST \
       }
     ]
   }'
-```
-
-```go
-// Create a new test
-test := Test{
-    Name:        "landing_page_variant",
-    Description: "Testing new landing page design",
-    Arms: []Arm{
-        {Name: "control", Description: "Current design"},
-        {Name: "variant_a", Description: "New hero section"},
-        {Name: "variant_b", Description: "New CTA placement"},
-    },
-}
-
-// Get next arm for testing
-arm := gobandit.GetArm(test.ID)
-
-// Record result
-gobandit.RecordResult(arm.ID, true) // true for success
-```
-
-## Local Development
-
-1. Start PostgreSQL:
-
-```bash
-docker compose up -d postgres
-```
-
-2. Start server:
-
-```bash
-go run main.go
 ```
 
 ## Progress
