@@ -154,30 +154,33 @@ templ ArmStats(arms []Arm) {
 }
 
 templ armCard(arm Arm) {
-	<div class="bg-gray-50 rounded p-4">
+	<div class="bg-white rounded p-4">
 		<h3 class="font-medium mb-2">{ arm.Name }</h3>
-		<div class="space-y-2">
-			<div class="flex justify-between">
-				<span class="text-gray-600">Successes:</span>
-				<span class="font-medium">{ fmt.Sprint(arm.Successes) }</span>
-			</div>
-			<div class="flex justify-between">
-				<span class="text-gray-600">Failures:</span>
-				<span class="font-medium">{ fmt.Sprint(arm.Failures) }</span>
-			</div>
-			if float64(arm.Successes + arm.Failures) > 0 {
+		<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+			<div class="space-y-2">
 				<div class="flex justify-between">
-					<span class="text-gray-600">Success Rate:</span>
-					<span class="font-medium">
-						{ fmt.Sprintf("%.1f%%", float64(arm.Successes)/float64(arm.Successes + arm.Failures)*100) }
-					</span>
+					<span class="text-gray-600">Successes:</span>
+					<span class="font-medium">{ fmt.Sprint(arm.Successes) }</span>
 				</div>
-			}
-			<div class="w-full bg-gray-200 rounded-full h-2.5 mt-2">
+				<div class="flex justify-between">
+					<span class="text-gray-600">Failures:</span>
+					<span class="font-medium">{ fmt.Sprint(arm.Failures) }</span>
+				</div>
+			</div>
+			<div class="space-y-2">
 				if float64(arm.Successes + arm.Failures) > 0 {
-					<div
-						class="bg-blue-600 h-2.5 rounded-full"
-					></div>
+					<div class="flex justify-between mb-4">
+						<span class="text-gray-600">Success Rate:</span>
+						<span class="font-medium">
+							{ fmt.Sprintf("%.1f%%", float64(arm.Successes)/float64(arm.Successes + arm.Failures)*100) }
+						</span>
+					</div>
+					<div class="h-full bg-gray-200 rounded-full p-2">
+						<div
+							class="bg-blue-600 h-2.5 rounded-full"
+						></div>
+						<span class="text-xs text-gray-600 mt-1">{ fmt.Sprintf("%.1f%%", float64(arm.Successes)/float64(arm.Successes + arm.Failures)*100) }%</span>
+					</div>
 				}
 			</div>
 		</div>
