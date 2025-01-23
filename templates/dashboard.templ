@@ -26,16 +26,66 @@ templ layout() {
 
 templ Dashboard(tests []Test) {
 	@layout() {
+		<div class="mb-8">
+			@createTestForm()
+		</div>
 		<h1 class="text-3xl font-bold mb-8">A/B Test Dashboard</h1>
-		<div class="grid grid-cols-1 gap-6">
+		<div id="tests-list" class="grid grid-cols-1 gap-6">
 			for _, test := range tests {
-				@testCard(test)
+				@TestCard(test)
 			}
 		</div>
 	}
 }
 
-templ testCard(test Test) {
+templ createTestForm() {
+	<div class="bg-white rounded-lg shadow p-6">
+		<h2 class="text-xl font-semibold mb-4">Create New Test</h2>
+		<form
+			hx-post="/tests"
+			hx-target="#tests-list"
+			hx-swap="afterbegin"
+			class="space-y-4"
+		>
+			<div>
+				<label for="name" class="block text-sm font-medium text-gray-700">Test Name</label>
+				<input
+					type="text"
+					name="name"
+					id="name"
+					class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+				/>
+			</div>
+			<div>
+				<label for="description" class="block text-sm font-medium text-gray-700">Description</label>
+				<textarea
+					name="description"
+					id="description"
+					rows="3"
+					class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+				></textarea>
+			</div>
+			<div>
+				<label for="numArms" class="block text-sm font-medium text-gray-700">Number of Arms</label>
+				<input
+					type="number"
+					name="numArms"
+					id="numArms"
+					min="2"
+					class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+				/>
+			</div>
+			<button
+				type="submit"
+				class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+			>
+				Create Test
+			</button>
+		</form>
+	</div>
+}
+
+templ TestCard(test Test) {
 	<div class="bg-white rounded-lg shadow p-6">
 		<div class="flex justify-between items-center mb-4">
 			<h2 class="text-xl font-semibold">{ test.Name }</h2>
@@ -47,8 +97,53 @@ templ testCard(test Test) {
 				class="grid grid-cols-1 md:grid-cols-3 gap-4"
 				hx-get={ fmt.Sprintf("/tests/%s/arms", test.ID) }
 				hx-trigger="load, every 30s"
-			></div>
+			>
+				@ArmStats(test.Arms)
+			</div>
+			@recordResultForm(test)
 		</div>
+	</div>
+}
+
+templ recordResultForm(test Test) {
+	<div class="mt-4 pt-4 border-t border-gray-200">
+		<h3 class="text-lg font-medium mb-3">Record Result</h3>
+		<form
+			hx-post={ fmt.Sprintf("/tests/%s/arms/{armID}/result", test.ID) }
+			hx-target="closest div"
+			class="flex gap-4 items-end"
+		>
+			<div>
+				<label for="armID" class="block text-sm font-medium text-gray-700">Arm</label>
+				<select
+					name="armID"
+					id="armID"
+					class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+				>
+					<option value="">Select an arm...</option>
+					for _, arm := range test.Arms {
+						<option value={ arm.ID }>{ arm.Name }</option>
+					}
+				</select>
+			</div>
+			<div>
+				<label for="result" class="block text-sm font-medium text-gray-700">Result</label>
+				<select
+					name="result"
+					id="result"
+					class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+				>
+					<option value="1">Success</option>
+					<option value="0">Failure</option>
+				</select>
+			</div>
+			<button
+				type="submit"
+				class="inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+			>
+				Record
+			</button>
+		</form>
 	</div>
 }
 
@@ -59,30 +154,33 @@ templ ArmStats(arms []Arm) {
 }
 
 templ armCard(arm Arm) {
-	<div class="bg-gray-50 rounded p-4">
+	<div class="bg-white rounded p-4">
 		<h3 class="font-medium mb-2">{ arm.Name }</h3>
-		<div class="space-y-2">
-			<div class="flex justify-between">
-				<span class="text-gray-600">Successes:</span>
-				<span class="font-medium">{ fmt.Sprint(arm.Successes) }</span>
-			</div>
-			<div class="flex justify-between">
-				<span class="text-gray-600">Failures:</span>
-				<span class="font-medium">{ fmt.Sprint(arm.Failures) }</span>
-			</div>
-			if float64(arm.Successes + arm.Failures) > 0 {
+		<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+			<div class="space-y-2">
 				<div class="flex justify-between">
-					<span class="text-gray-600">Success Rate:</span>
-					<span class="font-medium">
-						{ fmt.Sprintf("%.1f%%", float64(arm.Successes)/float64(arm.Successes + arm.Failures)*100) }
-					</span>
+					<span class="text-gray-600">Successes:</span>
+					<span class="font-medium">{ fmt.Sprint(arm.Successes) }</span>
 				</div>
-			}
-			<div class="w-full bg-gray-200 rounded-full h-2.5 mt-2">
+				<div class="flex justify-between">
+					<span class="text-gray-600">Failures:</span>
+					<span class="font-medium">{ fmt.Sprint(arm.Failures) }</span>
+				</div>
+			</div>
+			<div class="space-y-2">
 				if float64(arm.Successes + arm.Failures) > 0 {
-					<div
-						class="bg-blue-600 h-2.5 rounded-full"
-					></div>
+					<div class="flex justify-between mb-4">
+						<span class="text-gray-600">Success Rate:</span>
+						<span class="font-medium">
+							{ fmt.Sprintf("%.1f%%", float64(arm.Successes)/float64(arm.Successes + arm.Failures)*100) }
+						</span>
+					</div>
+					<div class="h-full bg-gray-200 rounded-full p-2">
+						<div
+							class="bg-blue-600 h-2.5 rounded-full"
+						></div>
+						<span class="text-xs text-gray-600 mt-1">{ fmt.Sprintf("%.1f%%", float64(arm.Successes)/float64(arm.Successes + arm.Failures)*100) }%</span>
+					</div>
 				}
 			</div>
 		</div>

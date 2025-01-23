@@ -4,13 +4,17 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"gobandit/models"
 	"gobandit/templates"
 	"log"
 	"math"
 	"math/rand"
 	"net/http"
+	"strconv"
 	"time"
+
+	"github.com/google/uuid"
 
 	"github.com/gorilla/mux"
 	_ "github.com/lib/pq"
@@ -51,6 +55,7 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	fmt.Printf("Dashboard tests: %d\n", len(tests))
 	err = templates.Dashboard(tests).Render(r.Context(), w)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -60,11 +65,47 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 
 // handleCreateTest creates a new test with the specified arms
 func (s *Server) handleCreateTest(w http.ResponseWriter, r *http.Request) {
-	var test models.Test
-	if err := json.NewDecoder(r.Body).Decode(&test); err != nil {
+	// var test models.Test
+
+	// Parse the form data
+	if err := r.ParseForm(); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+
+	// Create test from form values
+	test := models.Test{
+		ID:          uuid.New().String(),
+		Name:        r.FormValue("name"),
+		Description: r.FormValue("description"),
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	}
+
+	fmt.Printf("Created test with ID: %s, Name: %s\n", test.ID, test.Name)
+
+	// // Convert numArms from string to int
+	numArms, err := strconv.Atoi(r.FormValue("numArms"))
+	if err != nil {
+		http.Error(w, "Invalid number of arms", http.StatusBadRequest)
+		return
+	}
+
+	// Initialize arms slice with dummy values
+	test.Arms = make([]models.Arm, numArms)
+	for i := 0; i < numArms; i++ {
+		test.Arms[i] = models.Arm{
+			ID:          uuid.New().String(),
+			TestID:      test.ID,
+			Name:        fmt.Sprintf("Arm %d", i+1),
+			Description: fmt.Sprintf("Description for arm %d", i+1),
+			Successes:   0,
+			Failures:    0,
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+		}
+	}
+	fmt.Printf("Initialized %d arms\n", numArms)
 
 	tx, err := s.db.Begin()
 	if err != nil {
@@ -74,37 +115,48 @@ func (s *Server) handleCreateTest(w http.ResponseWriter, r *http.Request) {
 	defer tx.Rollback()
 
 	// Insert test
-	err = tx.QueryRow(`
-		INSERT INTO tests (name, description)
-		VALUES ($1, $2)
-		RETURNING id, created_at, updated_at
-	`, test.Name, test.Description).Scan(&test.ID, &test.CreatedAt, &test.UpdatedAt)
+	_, err = tx.Exec(`
+   INSERT INTO tests (id, name, description, created_at, updated_at)
+   VALUES ($1, $2, $3, $4, $5)
+`, test.ID, test.Name, test.Description, test.CreatedAt, test.UpdatedAt)
 	if err != nil {
+		fmt.Printf("Error inserting test: %v\n", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+	fmt.Printf("Inserted test with ID: %s\n", test.ID)
 
 	// Insert arms
-	for i := range test.Arms {
-		test.Arms[i].TestID = test.ID
-		err = tx.QueryRow(`
-			INSERT INTO arms (test_id, name, description)
-			VALUES ($1, $2, $3)
-			RETURNING id, created_at, updated_at
-		`, test.ID, test.Arms[i].Name, test.Arms[i].Description).
-			Scan(&test.Arms[i].ID, &test.Arms[i].CreatedAt, &test.Arms[i].UpdatedAt)
+	for i, arm := range test.Arms {
+		_, err = tx.Exec(`
+       INSERT INTO arms (id, test_id, name, description, successes, failures, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+   `, arm.ID, arm.TestID, arm.Name, arm.Description, arm.Successes, arm.Failures, arm.CreatedAt, arm.UpdatedAt)
 		if err != nil {
+			fmt.Printf("Error inserting arm %d: %v\n", i, err)
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
+		fmt.Printf("Inserted arm %d with ID: %s\n", i, arm.ID)
 	}
 
+	tx.Commit()
+	// After tx.Commit()
 	if err := tx.Commit(); err != nil {
+		fmt.Printf("Error committing transaction: %v\n", err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	json.NewEncoder(w).Encode(test)
+	// Set appropriate headers for HTMX response
+	w.Header().Set("Content-Type", "text/html")
+
+	// Render the template component
+	if err := templates.TestCard(test).Render(r.Context(), w); err != nil {
+		fmt.Printf("Error rendering template: %v\n", err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
 }
 
 // handleGetArmStats returns stats for all arms in a test
