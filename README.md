@@ -84,4 +84,3 @@ curl -X POST \
 - Additional bandit algorithms (UCB1, ε-greedy)
 - Real-time analytics dashboard
 - Prometheus metrics
-- A/A test support
