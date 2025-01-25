@@ -75,12 +75,11 @@ curl -X POST \
 - TODO: Blogpost
 - TODO: documentation
 - TODO: Performance benchmarks
-- TODO: Deployment guides
 - TODO: Example use cases
 
 ## Future Enhancements
 
+- Real-time dashboard?
 - Redis caching layer for high-traffic scenarios
 - Additional bandit algorithms (UCB1, ε-greedy)
-- Real-time analytics dashboard
 - Prometheus metrics
