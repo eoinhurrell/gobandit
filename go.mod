@@ -1,10 +1,10 @@
 module gobandit
 
-go 1.23.2
+go 1.25.0
 
 require (
 	github.com/DATA-DOG/go-sqlmock v1.5.2
-	github.com/a-h/templ v0.3.819
+	github.com/a-h/templ v0.3.1020
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1
 	github.com/lib/pq v1.10.9

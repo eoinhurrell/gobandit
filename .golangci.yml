@@ -1,0 +1,18 @@
+# golangci-lint v2 configuration.
+# https://golangci-lint.run/usage/configuration/
+#
+# Excludes errcheck findings for cleanup patterns whose returned error is not
+# actionable:
+#   - deferred Close/Rollback (rollback after Commit returns ErrTxDone; closing
+#     a rows cursor or the process DB has no useful error to surface)
+#   - best-effort DROP TABLE in test setup
+version: "2"
+
+linters:
+  exclusions:
+    rules:
+      - linters: [errcheck]
+        source: 'defer\s+\w+\.(Close|Rollback)\(\)'
+      - linters: [errcheck]
+        path: _test\.go
+        source: 'db\.Exec'

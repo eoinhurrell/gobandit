@@ -1,4 +1,20 @@
+# compiled binaries (root only — names collide with cmd/<name>/ source dirs,
+# so anchor with a leading slash to avoid ignoring the source).
+/gobandit
+/main
+/assignment-api
+/control-plane
+/test-server
+
+# build output
+/bin/
+
+# local tooling state
+.claude/
+
+# stale scratch files
+*.old
+
+# editor / env
 tags
-main
-gobandit
 .env
